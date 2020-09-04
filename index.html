@@ -1,0 +1,489 @@
+<html> 
+<head> <meta http-equiv="content-type" content="txt/html; charset=utf-8" /> <title>UTS subject map</title> </head>
+<script src="js/d3.v5.min.js"></script>
+<script src="js/jquery-1.11.0.min.js"></script>
+<link href="css/bootstrap.css" rel="stylesheet">
+<style>
+body{    
+    overflow-y: hidden;
+    overflow-x: hidden;
+}
+.container-fluid{ 
+	height: 100%; 
+}
+
+.row.title{
+	background: #333;
+	color: #fff;
+}
+.title h2{ 
+	font-size: 16px;
+	line-height: 3;
+	margin: 0;
+}
+.mycontent{ 
+	position:absolute;  
+	margin: 3;
+	overflow-y: auto; 
+    overflow-x: hidden;
+    padding: 0px;
+     
+}
+    h4{
+        font-family:"Times New Roman";
+    }
+    
+    h5{
+        font-family:"Times New Roman";
+    }
+ .container {
+                width: 340px;
+                height: 40px;
+                margin: 0px auto;
+            }
+            
+            .parent {
+                width: 100%;
+                height: 42px;
+                top: 4px;
+                position: relative;
+            }
+            
+            .parent>input:first-of-type {
+                width: 260px;
+                height: 35px; 
+                border: 1px solid #ccc;
+                font-size: 16px;
+                color: #000;
+                outline: none;
+
+            }
+            
+            .parent>input:first-of-type:focus {
+                border: 1px solid #317ef3;
+                padding-left: 0px;
+            }
+            
+            .parent>input:last-of-type {
+                width: 80px;
+                height: 35px; 
+                position: absolute;
+                background: #317ef3;
+                border: 1px solid #317ef3;
+                color: #fff;
+                font-size: 16px;
+                outline: none;
+            }
+</style>
+<body>
+  <body id="dashboard">
+    <div class="container-fluid">
+    	<div class="row title"  id = "title">
+        	<div class="col-md-9">
+          		<h2>UTS Subject Map</h2>
+        	</div>
+        	<div class="col-md-3">
+	        	<div class="container">
+	    			<form action="" class="parent">
+
+						    
+						    <input list="options" id = "searchStr">
+								<datalist id="options">
+								</datalist>
+	        			<input type="button" value="Search" id="SearchBtn">
+	    			</form>
+				</div>
+			</div>
+      	</div>
+      
+	    <div class="row">
+	        <div class="col-md-9" id="Chart"></div>
+	        <div class="col-md-3" id="label">
+	        	<div id="p1" class="mycontent"></div>
+	        </div>
+	    </div>
+
+     </div>
+    </body>
+  <script>
+  	var chartW = $("#Chart").width(),
+  	    chartH = $("#dashboard").height(),
+        labelW = $("#label").width(),
+        titleH = $("#title").height(),
+        padding = 20;
+    //default setting
+    document.getElementById("p1").style.height=chartH - titleH;
+
+    
+  	const svg = d3.select("div#Chart")
+  				  .append("svg")
+  				  .attr("width", chartW)
+  				  .attr("height", chartH - titleH);
+  	
+    linklayer = svg.append("g");
+    legendlayer = svg.append("g");
+    linelegendlayer = svg.append("g");
+    
+  	//read data
+	d3.json("data.json")
+		.then(function(jsondata){
+			
+		var nodes = jsondata.nodes.map(d => Object.create(d));
+		var links = jsondata.edges.map(d => Object.create(d));
+		var nodesToid = {};
+		var nameToid = {};
+        var event = null;
+    	nodes.forEach(function (d) {
+    		nodesToid[d.id] = {'x':d.x,'y':d.y};
+    		nameToid[d.id] = d.name;
+    	});	
+
+    	var nodesRequest = {};
+    	var nodesAntiRequest = {};
+    	var nodesconnections = {};
+    	links.forEach(function (d) {
+    		if (nodesRequest[d["source"]] == undefined)
+                nodesRequest[d["source"]] = [];
+            if (nodesRequest[d["target"]] == undefined)
+                nodesRequest[d["target"]] = [];
+            if (nodesAntiRequest[d["source"]] == undefined)
+                nodesAntiRequest[d["source"]] = [];
+            if (nodesAntiRequest[d["target"]] == undefined)
+                nodesAntiRequest[d["target"]] = [];
+            if (nodesconnections[d["source"]] == undefined)
+                nodesconnections[d["source"]] = [];
+            if (nodesconnections[d["target"]] == undefined)
+                nodesconnections[d["target"]] = [];
+            if (d.type == "request"){
+            	nodesRequest[d["target"]].push(nameToid[d["source"]]);
+            	nodesRequest[d["source"]].push(nameToid[d["target"]]);
+            }
+            else if (d.type == "anti-request"){
+            	nodesAntiRequest[d["target"]].push(nameToid[d["source"]]);
+            	nodesAntiRequest[d["source"]].push(nameToid[d["target"]]);
+            }
+            nodesconnections[d["target"]].push(nameToid[d["source"]]);
+            nodesconnections[d["source"]].push(nameToid[d["target"]]);
+
+    	});	
+
+    	const types = Array.from(new Set(nodes.map(d => d.faculty)));
+    	//Define the color of faculty
+    	const color = d3.scaleOrdinal(types,  ["#14CC66", "#CCAD0A", "#CC1200", "#3329CC", "#FF6F04", "#0096CC", "#0ACC23", " #ff6b6b", "#4b1248", " #606c88", "#008042", "#803107", "#CA5ECC", "#000000"]);
+    	//Draw x-axis 
+	    let xScale=d3.scaleLinear()
+	    	.domain([d3.min(nodes,(d)=>d.x),d3.max(nodes,(d)=>d.x)])
+	    	.range([padding,chartW-padding*2]);
+
+     	//Draw y-axis 
+	    let yScale=d3.scaleLinear()
+	    	.domain([d3.min(nodes,(d)=>d.y),d3.max(nodes,(d)=>d.y)])
+	    	.range([chartH-padding-titleH,padding]);
+
+	    
+	    
+	    //Draw Node
+    	const node = svg.append("g")
+			.attr("stroke-linecap", "round")
+	      	.attr("stroke-linejoin", "round")
+	    	.selectAll("g")
+	    	.data(nodes)
+	    	
+	    	.join("g");
+        /*const text = node.append("text")
+	  		.attr("id",d => d.id)
+	      	.attr("x", d => xScale(d.x))
+	      	.attr("y", d => yScale(d.y))
+	      	.attr("opacity", 0.)
+	      	.text(d => d.name)
+	    	.clone(true).lower()
+	      	.attr("fill", "none")
+	      	.attr("stroke", "white")
+	      	.attr("stroke-width", 1);*/
+
+	  	node.append("circle")
+	  	    .attr("id",d => d.id)
+	  	    .attr("fill", d => color(d.faculty))
+	      	.attr("stroke", "#fff")
+	      	.attr("stroke-width", 1)
+	      	.attr("cx", d => xScale(d.x))
+	      	.attr("cy", d => yScale(d.y))
+	      	.attr("r", 3)
+	      	.on("click",chechActiveClicked)
+	      	
+	      	.call(d3.drag()
+	      		 .subject(function() {
+          			var t = d3.select(this);
+			          return {
+			            x: t.attr("cx"),
+			            y: t.attr("cy")
+			          };
+ 
+        		})
+            	.on('drag', dragmove))
+	      	.append("title").text(function(d){
+			    return d.name;
+			});
+
+	  	
+	  	//Draw faculty lengend
+	    var legend = legendlayer.selectAll(".legend")
+			.data(types, d => d)
+			.enter()
+			.append("g")
+			.attr("class", "legend")
+			.attr("transform", function(d, i) {
+				var legendX = chartW - padding -200;   //set position for each legend element
+				var legendY = chartH - titleH -i * 12 + - 30;
+				return "translate(" + legendX + ", " + legendY + ")";
+			});
+			
+		legend.append("rect")
+			.attr("x", 0)
+			.attr("y", 1)
+			.attr("width", 16)
+			.attr("height", 8)
+			.style("fill", color)
+			.on("click",lclicked);
+			
+		legend.append("text")
+			.attr("x", 20)
+			.attr("y", 9)
+			.classed("legendtext", true)
+			.text(function(d) {
+				return d;
+			});
+        // Draw requisite & Anti-Requisite legend
+		var liendata = [{"name":"Requisite","color":"#3300FF"},{"name":"Anti-Requisite","color":"#CC3333"}];
+		
+		var linelegend = linelegendlayer.selectAll(".legend")
+			.data(liendata, d => d.name)
+			.enter()
+			.append("g")
+			.attr("class", "llegend")
+			.attr("transform", function(d, i) {
+				var legendX = padding -10;   //set position for each legend element
+				var legendY = padding +i * 16;
+				return "translate(" + legendX + ", " + legendY + ")";
+			});
+			
+		linelegend.append("rect")
+			.attr("x", 0)
+			.attr("y", 1)
+			.attr("width", 36)
+			.attr("height", 2)
+			.style("fill", d =>d.color);
+			
+		linelegend.append("text")
+			.attr("x", 38)
+			.attr("y", 6)
+			.classed("legendtext", true)
+			.text(function(d) {
+				return d.name;
+			});
+
+		//Drag the Node and move
+		function dragmove(d) {
+            nodesToid[d.id] = {'x':xScale.invert(d3.event.x),'y':yScale.invert(d3.event.y)};
+		    d3.select(this)
+          		.attr("cx", d.cx = d3.event.x)
+          		.attr("cy", d.cy = d3.event.y);
+
+		    linklayer.selectAll("line")
+		        .attr("x1", d => xScale(nodesToid[d.source].x))
+	        	.attr("y1", d => yScale(nodesToid[d.source].y))
+	        	.attr("x2", d => xScale(nodesToid[d.target].x))
+	        	.attr("y2", d => yScale(nodesToid[d.target].y));
+		  };
+
+	    var active = d3.select(null);
+
+	    function chechActiveClicked(d){
+	    	if (active.node() === this) return reset();
+            active.classed("active", false);
+            active = d3.select(this).classed("active", true);
+            clicked(d);
+	    }
+
+	    //Click function to draw line between different node
+	    function clicked(d){
+	    	
+            var innerText = "<h4><b>Name:"+d.name+"</b></h4>"+
+            				"<h4><b>ID:</b>"+d.id+"</h4>"+
+                            "<h4><b>Faculty:</b>"+d.faculty+"</h4>"+
+            				'<a href="'+d.outline_url+'" >'+d.outline_url+'</a>';
+            if(nodesRequest[d.id].length==0 || nodesRequest[d.id][0]=='undefined'){
+                innerText = innerText + "<h5><b>Requisite</b><br>None<br></h5>";
+            }else{
+                innerText = innerText + "<h5><b>Requisite</b></h5>";
+                 for(var i=0;i<nodesRequest[d.id].length;i++){
+                     innerText = innerText + "<h5>"+nodesRequest[d.id][i]+"</h5>";
+                 }
+            }
+            
+            if(nodesAntiRequest[d.id].length == 0 || nodesAntiRequest[d.id][0]=='undefined'){
+                innerText = innerText + "<h5><b>Anti-Requisite</b><br>None<br></h5>";
+            }else{
+                innerText = innerText + "<h5><b>Anti-Requisite</b></h5>";
+                 for(var i=0;i<nodesAntiRequest[d.id].length;i++){
+                     innerText = innerText + "<h5>"+nodesAntiRequest[d.id][i]+"</h5>";
+                 }
+                
+            }
+            
+            innerText = innerText + "<h5><b>Hign Similarity</b><br></h5>";
+                
+            for(var i=0;i<nodesconnections[d.id].length;i++){
+                innerText = innerText + "<h5>"+nodesconnections[d.id][i]+"</h5>";
+                
+            }
+            
+            
+            
+            document.getElementById("p1").innerHTML=innerText;
+
+            var nodes = [d.id];
+
+            var linkdata = links.filter(function(link){
+                if (link.source == d.id || link.target == d.id) {
+                        if (nodes.indexOf(link.source)<0)nodes.push(link.source);
+                        if (nodes.indexOf(link.target)<0)nodes.push(link.target);
+                    }
+                return link.source == d.id || link.target == d.id;
+            });
+
+            var link = linklayer.selectAll("line")
+                .data(linkdata);
+                
+            link.enter()
+                .append("line")
+                .merge(link)
+                //.transition()
+                //.duration(500)
+                .attr("stroke-opacity", 1.)
+                .attr("stroke", function(d){
+                    if (d.type == "normal")
+                        return "#999";
+                    else if (d.type == "request")
+                        return "#3300FF";
+                    else
+                        return "#CC3333";
+                })
+                .attr("x1", d => xScale(nodesToid[d.source].x))
+                .attr("y1", d => yScale(nodesToid[d.source].y))
+                .attr("x2", d => xScale(nodesToid[d.target].x))
+                .attr("y2", d => yScale(nodesToid[d.target].y));
+
+            link.exit().remove();
+            if(event)
+                linklayer.selectAll("line").attr('transform', event);
+            node.attr("opacity", function (n) {
+                    if (nodes.indexOf(n.id)>=0){
+                        return 1.;
+                    }
+                    else
+                        return 0.1;
+                });
+
+            /*text.style("opacity", function (t) {
+                    if (t.id == d.id ) {
+                        return 1;
+                    }
+                    else
+                        return 0;
+                });*/
+	    }
+
+	    //Function for click faculty
+	    function lclicked(d){
+	    	
+            document.getElementById("p1").innerHTML="";
+            
+            node.attr("opacity", function (n) {
+                    if (n.faculty == d){
+                        return 1.;
+                    }
+                    else
+                        return 0.1;
+                });
+            linklayer.selectAll("line").remove();
+	    }
+
+	    //Control the Zoom-in and Zoom-out
+	    svg.call(d3.zoom().on('zoom', function() {
+            event = d3.event.transform;
+		    node.attr('transform', d3.event.transform);
+		    linklayer.selectAll("line").attr('transform', d3.event.transform);
+
+		})).on("dblclick.zoom", null);
+
+	    //Reset all function
+		function reset(){
+			active.classed("active", false);
+  			active = d3.select(null);
+			linklayer.selectAll("line").remove();
+            node.attr("opacity", 1);
+            document.getElementById("p1").innerHTML="";
+		}
+
+		//Search result
+		var btn = document.getElementById("SearchBtn");  
+    		btn.onclick =function(){  
+    			var input=document.getElementById("searchStr");  
+        		var obj = nodes.filter(function(d){return d.name == input.value});
+        		if (obj.length >0)
+        			clicked(obj[0]);
+        		else{
+        			reset();
+        			document.getElementById("p1").innerHTML="";
+        		}
+        			
+    	} 
+
+    	//monitor the input of search area
+    	$("input:text").bind("input propertychange",function(){   
+		    inputContent=document.getElementById("searchStr");  
+		    var datalist=document.getElementById("options");  
+		    //Validate the null input in the search area 
+		    if(inputContent.value.length==0||inputContent.value==" ")  
+		    {     
+		        var sub=datalist.childNodes;  
+		        if(sub.length>0)  
+		        {  
+		            for (var i =sub.length-1; i>=0 ; i--)   
+		            {  
+		                datalist.removeChild(sub[i]);         
+		            }  
+		        }    
+		    }
+		    else{
+		    	var sub=datalist.childNodes;  
+		        if(sub.length>0)  
+		        {  
+		            for (var i =sub.length-1; i>=0 ; i--)   
+		            {  
+		                datalist.removeChild(sub[i]);         
+		            }  
+		        }  
+		        var data = nodes.filter(function(d){return d.name.indexOf(inputContent.value)>=0});
+		        for (var i=0;i<data.length;i++)   
+			    {  
+			         var obj=document.createElement("option");  
+			         obj.value=data[i].name;
+			         obj.innerHTML=data[i].name;  
+			         datalist.appendChild(obj);       
+			    }  
+		    }
+		    
+		}  );
+
+    	//Double-Click Response
+		document.getElementById("Chart").ondblclick = function (){
+			reset();
+		}
+	});
+	
+	
+  </script>
+</body> 
+</html> 
